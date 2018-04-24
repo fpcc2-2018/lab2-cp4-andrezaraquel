@@ -20,7 +20,10 @@ searches = events %>%
     arrange(timestamp) %>% 
     summarise(
         session_start_timestamp = first(timestamp),
+        session_end_timestamp = last(timestamp),
         session_start_date = ymd_hms(first(timestamp)),
+        session_end_date = ymd_hms(last(timestamp)),
+        checkin = last(checkin),
         group = first(group), # eventos de uma mesma sessão são de um mesmo grupo
         results = max(n_results, na.rm = TRUE), # se não houver busca, retorna -Inf
         num_clicks = sum(action == "visitPage"), 
