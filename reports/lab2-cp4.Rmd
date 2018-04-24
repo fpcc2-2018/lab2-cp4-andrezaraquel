@@ -1,0 +1,56 @@
+---
+title: "Lab 2 - Checkpoint 4 - Andreza Raquel"
+output: html_notebook
+---
+
+# Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation
+
+O objetivo desse documento é realizar uma análise nos dados de eventos (event logging (EL)) capturados pela Wikimedia Foundation. 
+
+O conjunto de dados vem de um esquema de rastreamento usado na empresa para avaliar a satisfação do usuário. Os usuários são escolhidos aleatoriamente para serem rastreados anonimamente por esse esquema que usa um sistema de ping "Estou vivo", que permite estimar por quanto tempo os usuários permanecem nas páginas que visitam. O conjunto de dados contém apenas pouco mais de uma semana de dados de EL.
+
+Nossa análise busca tocar nos seguintes pontos:
+
+* Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+* Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+* Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+* A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
+
+
+## Importando as bibliotecas necessárias e lendo os dados
+
+```{r setup, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+library(lubridate)
+library(knitr)
+library(ggplot2)
+theme_set(theme_bw())
+```
+
+Após importar as bibliotecas acima, vamos ler os dados que foram formatados e salvos no documento search_data.csv. Esse documento contém as seguintes colunas:
+
+* **session_id:** Um ID exclusivo que identifica sessões individuais;
+* **search_index:** Número da busca realizada pelo usuário na sessão;
+* **session_start_timestamp:** Timestamp do início da pesquisa;
+* **session_end_timestamp:** Timestamp do fim da pesquisa;
+* **session_start_date:** Data e hora do início da pesquisa;
+* **session_end_date:** Data e hora do fim da pesquisa;
+* **checkin:** Por quanto tempo a página permaneceu aberta;
+* **group:** Um label ("a" ou "b");
+* **results:** Número de ocorrências retornadas ao usuário;
+* **num_clicks:** Número de ocorrências clicadas pelo usuário;
+* **first_click:** Posição da ocorrência que o usuário clicou primeiro.
+
+
+```{r ETL}
+buscas = read_csv(here::here("data/search_data.csv")) %>%
+  head(100000)
+```
+
+```{r}
+buscas %>% 
+    ggplot(aes(x = results)) + 
+    geom_histogram(binwidth = 5) 
+```
+
