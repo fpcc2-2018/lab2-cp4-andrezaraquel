@@ -49,40 +49,63 @@ buscas = read_csv(here::here("data/search_data.csv"))
 
 #buscas = buscas %>% head(1000) # TODO comentar essa linha na versão final
 
+```
+
+Agora, vamos adicionar mais uma coluna aos dados para facilitar as visualizações. Essa coluna vai se chamar *date* e será a data do início da pesquisa, sem conter a hora que ela aconteceu. Será derivada da coluna já existente *session_start_timestamp*.
+
+```{r}
 buscas = buscas  %>%
   mutate(
     date = as.character(as.Date(round_date(ymd_hms(session_start_timestamp))), 
     unit = "day"))
 
-estranho =  buscas %>%
-  filter(is.na(first_click) & num_clicks > 0)
-estranho
+```
 
-errados = buscas %>%
+
+Em nossas análises precisaremos que algumas colunas em específico estejam consistentes entre si. É lógico, pelo que sabemos dos dados, que o primeiro clique do usuário só pode ser um número entre 1 e o número de resultados retornado na pesquisa. É fácil perceber também que se o número de cliques for maior ou igual a zero, significa que a coluna *first_click* deve estar devidamente preenchida. 
+
+
+Vejamos se os dados ferem essas premissas:
+
+```{r}
+premissa1 = buscas %>%
   filter(first_click > results )
+premissa1
 
-errados
+premissa2 =  buscas %>%
+  filter(is.na(first_click) & num_clicks > 0)
+premissa2
 
-na = buscas %>%
-  filter(is.na(first_click))
-
-buscas = buscas %>%
-  filter((first_click <= results) | (is.na(first_click) & num_clicks == 0))
-
-
+numero_cliques = buscas %>%
+  filter(num_clicks > results)
+numero_cliques 
 
 ```
 
-Feito isso, vamos começar a análise de fato. Começamos com a seguinte perguta:
+
+Aqui vemos que as consultas das premissas acima não retornaram vazias, o que significa que algo está estranho. Analizando os resultados, preferiu-se tirar esses dados "problemáticos" das buscas.
+
+Outro fato interessante observado foi que, em alguns casos, o número de cliques é maior que o número de resultados retornados. O que podemos deduzir disso é que o usuário clicou no mesmo link várias vezes, portanto faz sentido manter esses dados e não considerá-los como "sujeiras".
+
+Façamos a limpeza dos dados:
+
+
+```{r}
+buscas = buscas %>%
+  filter((first_click <= results) | (is.na(first_click) & num_clicks == 0))
+
+```
+
+
+Feito isso, vamos começar com a seguinte perguta:
 
 ####Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
 
-Em x por cento das buscas que não (retornaram vazias?) de cada dia, as pessoas clicaram em y links. Esta resposta está respondendo à pergunta certa?
+o gráfico abaixo mostra a taxa de cada quantidade de cliques em cada dia presente nos dados. Essa taxa de cliques é a porcentagem de cliques em relação ao total de pesquisas - que retornaram agum resultado - realizadas no dia. Ou seja, a soma das taxas das quantidades de cliques iguais a  0, 1, 2, ... ,n de um dia específico é igual a 100%.
 
-Acho que o último gráfico responde melhor o/
+Podemos ver que os dados estão concentrados na faixa de 0 a 5 cliques, porque as barras maiores estão nessas posições. Mais especificamente, vemos que as maiores taxas são observadas para a quantidade de cliques igual a zero. As segundas maiores taxas observadas são para a quantidade de cliques igual a 1. Após isso, vemos que as taxas tendem a diminuir. Essas conclusões são observadas em todos os dias presentes nos dados, representados pelas barras de cores diferentes.
 
 ```{r}
-
 taxa_cliques <- buscas %>%
   filter(results >= 1, !is.na(num_clicks)) %>%
   arrange(date) %>%
@@ -90,73 +113,95 @@ taxa_cliques <- buscas %>%
   summarise(n = n()) %>% 
   mutate(taxa_cliques = n / sum(n) * 100) 
 
-taxa_cliques
-
-
 taxa_cliques %>% 
   ggplot(aes(x= num_clicks, y = taxa_cliques, fill = date)) + 
   geom_col(position = "dodge") 
 
 
+```
+
+Para responder à pesqunta da taxa de cliques, precisamos observar a soma das taxas de cliques, onde o número de cliques seja maior que zero. Podemos observar esse resultado abaixo. 
+
+Para cada dia presente nos dados, observamos que essa taxa é em torno de 30%, que é a altura das barras. Ou seja, em cerca de 30% das pesquisas realizadas - e que retornaram algum resultado - em cada dia, os usuários clicaram em algum resultado retornado. Esse resultado confirma o que foi observado anteriormente, onde a taxa para o número de cliques igual a zero foi em torno de 70% no gráfico acima.
+
+```{r}
 taxa_cliques %>% 
   filter(num_clicks > 0) %>%
   ggplot(aes(x = date, y =  taxa_cliques )) + 
   geom_col() 
 
-
-
 ```
 
+Ao separarmos os dados por grupos, e fazermos a mesma análise acima, chegamos a resultados diferentes em cada grupo.
 
-Em x por cento das buscas que não (retornaram vazias?) de cada dia em cada grupo, as pessoas clicaram em y links. Esta resposta está respondendo à pergunta certa?
-
-Acho que o último gráfico responde melhor o/
+No gráfico abaixo podemos observar que a taxa de cliques zero é menor no grupo *a* (em torno de 35%) que no grupo *b* (em torno de 80%). E isso pode ser observado em todos os dias de dados.
 
 
 ```{r}
-
 taxa_cliques_group <- buscas %>%
   filter(results >= 1, !is.na(num_clicks)) %>%
   group_by(date, group, num_clicks) %>%
   summarise(n = n()) %>% 
   mutate(taxa_cliques_group = n / sum(n) * 100) 
 
-taxa_cliques_group
-
-
 taxa_cliques_group %>% 
   ggplot(aes(x= num_clicks, y = taxa_cliques_group, fill = date)) + 
   geom_col(position = "dodge") +
   facet_grid(group ~ .)
 
+```
+
+Podemos novamente confirmar os dados do gráfico anterior e ainda responder à pergunta da taxa de cliques por grupo na visualização abaixo.
+
+Assim como antes, podemos observar abaixo a soma das taxas de cliques, onde o número de cliques seja maior que zero, mas agora separamos por grupos.
+
+Podemos perceber que a taxa de cliques para o grupo *a* está em torno de 35% em todos os dias de dados, já que as alturas das barras ficam próximas desse valor. Já no grupo *b*,  na metade dos dias observados, as taxas não chegam a 20%, e na outra metade as taxas ultrapassam um pouco esses 20% mas não chegam nem a 25%. 
+
+Podemos concluir, então, que no grupo *a* a taxa de cliques do grupo *a* é superior à taxa de cliques do grupo *b* em todos os dias observados. 
+
+
+```{r}
 taxa_cliques_group %>% 
   filter(num_clicks > 0) %>%
   ggplot(aes(x = date, y =  taxa_cliques_group )) + 
   geom_col() +
   facet_grid(group ~ .)
-  
-
 
 ```
 
 
 ####Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
 
-```{r}
+Para responder a essa pergunta, vamos analisar o relacionamento das colunas *results* e *first_click*. Podemos ver que há uma concentração de pontos na faixa de valores entre 0 e 25 no eixo da variável *first_click*, o que nos leva a acreditar que os usuários tendem a tentar primeiro os primeiros reultados da busca. Há mais alguns pontos extremos, onde os usuários clicam primeiro no resultado que fica em posições maiores, mas não são a maioria.
 
+```{r}
 buscas  %>%
   filter(!is.na(first_click)) %>%
+  ggplot(aes(x = first_click, y = results )) +
+  geom_jitter(alpha = .5, color = "darkcyan")
+
+```
+Para responder ainda melhor à pergunta, vamos analisar em um gráfico diferente. Para facilitar a visualização, vamos filtrar os dados de *first_click* menores que 25, pois vimos que é onde os dados concentram-se, então isso não prejudicará a conclusão nesse caso. Assim, podemos ver abaixo uma barra para cada valor de *first_click*, onde a primeira barra é referente ao valor *1*, a segunda referente ao valor *2*, e assim por diante.
+
+Com base nessas informações, podemos dizer que os usuários tendem a tentar primeiro os resultados que ficam até a 5ª, ou 6ª ou até 7ª posições. Se quisermos ser ainda mais específicos, dizemos que os usuários tendem a tentar primeiro os resultados da primeira posição, pois é a posição onde a barra está mais alta no gráfico abaixo.
+
+```{r}
+buscas  %>%
+  filter(!is.na(first_click) & first_click < 25) %>%
   ggplot(aes(x = first_click)) +
-  scale_y_log10() +
   geom_histogram(binwidth = 1, fill = "darkcyan")
 
 ```
+
+Agora, se fizermos a mesma análise e separarmos os resultados por dia, chegaremos às mesmas conclusões anteriores. Isso porque, na visualização abaixo, podemos ver que as barras em cada gráfico estão basicamente no mesmo formato das barras do gráfico anterior, e por equivalência, os gráficos abaixo também são parecidos entre si.
+
+
 ```{r}
 buscas  %>%
   filter(!is.na(first_click)) %>%
   arrange(date) %>%
   ggplot(aes(x =  first_click, fill = date )) +
-  geom_histogram(binwidth = 5)  +
+  geom_histogram(binwidth = 6)  +
   facet_wrap(~ date, ncol = 3)
 
 
@@ -166,23 +211,25 @@ buscas  %>%
 ####Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
 
 
-```{r}
+O gráfico abaixo responde à primeira pergunta. Podemos observar que a altura da barra vai até 18.48% que é a taxa de pesquisas que não retornaram nenhum resultado. Essa taxa está considerando todos os dias de dados para os dois grupos presentes *a* e *b*.
 
+
+```{r}
 taxa_res <- buscas %>%
   group_by(results) %>%
   summarise(n = n()) %>% 
   mutate(taxa_res = n / sum(n) * 100) 
 
-taxa_res
-
 
 taxa_res %>% 
   filter(results == 0) %>% 
   ggplot(aes(x= "resultados zero", y = taxa_res )) + 
-  geom_col(width = .1, alpha = .5) 
+  geom_col(width = .1, alpha = .5) +
+  geom_text(aes(label = signif(taxa_res, digits = 4)), size = 3, hjust = 0.5, vjust = 3, position = "stack")
 
 ```
 
+Quando separamos os grupos para responder à segunda pergunta, obtemos os resultados apresentaados abaixo. Podemos ver que há uma pequena diferença nas taxas de pesquisas que retornaram nenhum resultado. O grupo *a* retornou um pouco menos de resultados vazios: 18.42%, enquanto que no grupo *b*, 18.62% das pesquisas realizadas não retornaram resultados. 
 
 
 ```{r}
@@ -192,21 +239,24 @@ taxa_res_group <- buscas %>%
   summarise(n = n()) %>% 
   mutate(taxa_res_group = n / sum(n) * 100) 
 
-taxa_res_group
-
-
 taxa_res_group %>% 
   filter(results == 0) %>% 
   ggplot(aes(x = group, y = taxa_res_group )) + 
-  geom_col(width = .1, alpha = .5) 
+  geom_col(width = .3, alpha = .5) +
+  geom_text(aes(label = signif(taxa_res_group, digits = 4)), size = 3, hjust = 0.5, vjust = 3, position = "stack")
 
 ```
 
 
-
-
-
 ####A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
+
+Criamos a variável de duração da sessão fazendo a diferença entre o último *session_end_date* e o primeiro *session_start_date* para cada sessão dos dados, representada pela coluna *session_id*.
+A variável grupo foi a escolhida para ser relacionda com a duração da sessão.
+
+Abaixo, vamos o gráfico que relaciona as duas. A escala do eixo y, que representa o tempo em minutos de duração da sessão, foi modificada em escala logaritmica para facilitar a visualização.
+
+Podemos observar que, nos dois grupos, os tempos das sessões seguem as mesmas proporções, já que a distribuição dos pontos no gráfico está parecida.
+
 
 ```{r}
 
@@ -214,17 +264,13 @@ duracao_sessao <- buscas %>%
   arrange(session_start_date) %>%
   group_by(session_id, group) %>%
   summarise(
-    duracao_sessao = difftime(last(session_end_date), first(session_start_date), tz = "UTC", units="secs"))
-
-duracao_sessao
+    duracao_sessao = difftime(last(session_end_date), first(session_start_date), tz = "UTC", units="mins")) %>%
+  mutate(duracao_sessao = as.numeric(duracao_sessao))
 
 duracao_sessao %>%
-  ggplot(aes(x = group, as.numeric(duracao_sessao))) +
+  ggplot(aes(x = group, y = duracao_sessao)) +
   geom_jitter(alpha = .5, aes(col = group)) +
   scale_y_log10()
   
 ```
-
-
-
 
