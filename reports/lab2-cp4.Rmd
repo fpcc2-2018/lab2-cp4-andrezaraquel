@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-# Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation
+##Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation
 
 O objetivo desse documento é realizar uma análise nos dados de eventos (event logging (EL)) capturados pela Wikimedia Foundation. 
 
@@ -19,7 +19,7 @@ Nossa análise busca tocar nos seguintes pontos:
 * A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
 
 
-## Importando as bibliotecas necessárias e lendo os dados
+###Importando as bibliotecas necessárias e lendo os dados
 
 ```{r setup, warning=FALSE, message=FALSE}
 library(tidyverse)
@@ -46,8 +46,6 @@ Após importar as bibliotecas acima, vamos ler os dados que foram formatados e s
 
 ```{r ETL}
 buscas = read_csv(here::here("data/search_data.csv"))
-
-#buscas = buscas %>% head(1000) # TODO comentar essa linha na versão final
 
 ```
 
@@ -115,7 +113,11 @@ taxa_cliques <- buscas %>%
 
 taxa_cliques %>% 
   ggplot(aes(x= num_clicks, y = taxa_cliques, fill = date)) + 
-  geom_col(position = "dodge") 
+  geom_col(position = "dodge") +
+  labs(title="Porcentagem vs. Número de cliques",
+       x="Número de cliques", 
+       y="Taxa de cliques (%)", 
+       fill = "Dias")
 
 
 ```
@@ -128,7 +130,10 @@ Para cada dia presente nos dados, observamos que essa taxa é em torno de 30%, q
 taxa_cliques %>% 
   filter(num_clicks > 0) %>%
   ggplot(aes(x = date, y =  taxa_cliques )) + 
-  geom_col() 
+  geom_col(fill = "darkcyan", alpha = .5) +
+  labs(title="Porcentagem de cliques por dia",
+       x="Dias", 
+       y="Taxa de cliques maiores que zero (%)")
 
 ```
 
@@ -147,7 +152,11 @@ taxa_cliques_group <- buscas %>%
 taxa_cliques_group %>% 
   ggplot(aes(x= num_clicks, y = taxa_cliques_group, fill = date)) + 
   geom_col(position = "dodge") +
-  facet_grid(group ~ .)
+  facet_grid(group ~ .) +
+  labs(title="Porcentagem vs. Número de cliques por grupo",
+       x="Número de cliques", 
+       y="Taxa de cliques (%)", 
+       fill = "Dias")
 
 ```
 
@@ -164,8 +173,11 @@ Podemos concluir, então, que no grupo *a* a taxa de cliques do grupo *a* é sup
 taxa_cliques_group %>% 
   filter(num_clicks > 0) %>%
   ggplot(aes(x = date, y =  taxa_cliques_group )) + 
-  geom_col() +
-  facet_grid(group ~ .)
+  geom_col(fill = "darkcyan", alpha = .5) +
+  facet_grid(group ~ .) +
+  labs(title="Porcentagem de cliques por dia por grupo",
+       x="Dias", 
+       y="Taxa de cliques maiores que zero (%)")
 
 ```
 
@@ -178,9 +190,13 @@ Para responder a essa pergunta, vamos analisar o relacionamento das colunas *res
 buscas  %>%
   filter(!is.na(first_click)) %>%
   ggplot(aes(x = first_click, y = results )) +
-  geom_jitter(alpha = .5, color = "darkcyan")
+  geom_jitter(alpha = .5, color = "darkcyan") +
+  labs(title="Resultados Vs. Primeiro clique",
+       x="Primeiro Clique", 
+       y="Número de resultados")
 
 ```
+
 Para responder ainda melhor à pergunta, vamos analisar em um gráfico diferente. Para facilitar a visualização, vamos filtrar os dados de *first_click* menores que 25, pois vimos que é onde os dados concentram-se, então isso não prejudicará a conclusão nesse caso. Assim, podemos ver abaixo uma barra para cada valor de *first_click*, onde a primeira barra é referente ao valor *1*, a segunda referente ao valor *2*, e assim por diante.
 
 Com base nessas informações, podemos dizer que os usuários tendem a tentar primeiro os resultados que ficam até a 5ª, ou 6ª ou até 7ª posições. Se quisermos ser ainda mais específicos, dizemos que os usuários tendem a tentar primeiro os resultados da primeira posição, pois é a posição onde a barra está mais alta no gráfico abaixo.
@@ -189,7 +205,10 @@ Com base nessas informações, podemos dizer que os usuários tendem a tentar pr
 buscas  %>%
   filter(!is.na(first_click) & first_click < 25) %>%
   ggplot(aes(x = first_click)) +
-  geom_histogram(binwidth = 1, fill = "darkcyan")
+  geom_histogram(binwidth = 1, fill = "darkcyan") +
+  labs(title="Primeiro clique - distribuição",
+       x="Primeiro Clique", 
+       y="Quantidade")
 
 ```
 
@@ -201,8 +220,12 @@ buscas  %>%
   filter(!is.na(first_click)) %>%
   arrange(date) %>%
   ggplot(aes(x =  first_click, fill = date )) +
-  geom_histogram(binwidth = 6)  +
-  facet_wrap(~ date, ncol = 3)
+  geom_histogram(binwidth = 2)  +
+  facet_wrap(~ date, ncol = 2) +
+  labs(title="Primeiro clique - distribuição por dia",
+       x="Primeiro Clique", 
+       y="Quantidade") +
+   theme(legend.position="none")
 
 
 ```
@@ -224,8 +247,11 @@ taxa_res <- buscas %>%
 taxa_res %>% 
   filter(results == 0) %>% 
   ggplot(aes(x= "resultados zero", y = taxa_res )) + 
-  geom_col(width = .1, alpha = .5) +
-  geom_text(aes(label = signif(taxa_res, digits = 4)), size = 3, hjust = 0.5, vjust = 3, position = "stack")
+  geom_col(width = .1, alpha = .5, fill = "darkcyan") +
+  geom_text(aes(label = signif(taxa_res, digits = 4)), size = 3, hjust = 0.5, vjust = 3, position = "stack") +
+   labs(title="Taxa de resultados zero no geral",
+       x="", 
+       y="Taxa de resultados zero (%)") 
 
 ```
 
@@ -242,8 +268,11 @@ taxa_res_group <- buscas %>%
 taxa_res_group %>% 
   filter(results == 0) %>% 
   ggplot(aes(x = group, y = taxa_res_group )) + 
-  geom_col(width = .3, alpha = .5) +
-  geom_text(aes(label = signif(taxa_res_group, digits = 4)), size = 3, hjust = 0.5, vjust = 3, position = "stack")
+  geom_col(width = .3, alpha = .5, fill = "darkcyan") +
+  geom_text(aes(label = signif(taxa_res_group, digits = 4)), size = 3, hjust = 0.5, vjust = 3, position = "stack") +
+   labs(title="Taxa de resultados zero por grupo",
+       x="Grupos", 
+       y="Taxa de resultados zero (%)")
 
 ```
 
@@ -258,7 +287,7 @@ Abaixo, vamos o gráfico que relaciona as duas. A escala do eixo y, que represen
 Podemos observar que, nos dois grupos, os tempos das sessões seguem as mesmas proporções, já que a distribuição dos pontos no gráfico está parecida.
 
 
-```{r}
+```{r, warning=FALSE}
 
 duracao_sessao <- buscas %>%
   arrange(session_start_date) %>%
@@ -270,7 +299,11 @@ duracao_sessao <- buscas %>%
 duracao_sessao %>%
   ggplot(aes(x = group, y = duracao_sessao)) +
   geom_jitter(alpha = .5, aes(col = group)) +
-  scale_y_log10()
+  scale_y_log10() +
+   labs(title="Duração das sessões por grupo",
+       x="Grupos", 
+       y="Duração da sessão em minutos (log10)") +
+  theme(legend.position="none")
   
 ```
 
