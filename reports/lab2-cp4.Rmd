@@ -1,6 +1,8 @@
 ---
 title: "Lab 2 - Checkpoint 4 - Andreza Raquel"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 # Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation
@@ -42,15 +44,187 @@ Após importar as bibliotecas acima, vamos ler os dados que foram formatados e s
 * **num_clicks:** Número de ocorrências clicadas pelo usuário;
 * **first_click:** Posição da ocorrência que o usuário clicou primeiro.
 
-
 ```{r ETL}
-buscas = read_csv(here::here("data/search_data.csv")) %>%
-  head(100000)
+buscas = read_csv(here::here("data/search_data.csv"))
+
+#buscas = buscas %>% head(1000) # TODO comentar essa linha na versão final
+
+buscas = buscas  %>%
+  mutate(
+    date = as.character(as.Date(round_date(ymd_hms(session_start_timestamp))), 
+    unit = "day"))
+
+estranho =  buscas %>%
+  filter(is.na(first_click) & num_clicks > 0)
+estranho
+
+errados = buscas %>%
+  filter(first_click > results )
+
+errados
+
+na = buscas %>%
+  filter(is.na(first_click))
+
+buscas = buscas %>%
+  filter((first_click <= results) | (is.na(first_click) & num_clicks == 0))
+
+
+
 ```
+
+Feito isso, vamos começar a análise de fato. Começamos com a seguinte perguta:
+
+####Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+
+Em x por cento das buscas que não (retornaram vazias?) de cada dia, as pessoas clicaram em y links. Esta resposta está respondendo à pergunta certa?
+
+Acho que o último gráfico responde melhor o/
 
 ```{r}
-buscas %>% 
-    ggplot(aes(x = results)) + 
-    geom_histogram(binwidth = 5) 
+
+taxa_cliques <- buscas %>%
+  filter(results >= 1, !is.na(num_clicks)) %>%
+  arrange(date) %>%
+  group_by(date, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques = n / sum(n) * 100) 
+
+taxa_cliques
+
+
+taxa_cliques %>% 
+  ggplot(aes(x= num_clicks, y = taxa_cliques, fill = date)) + 
+  geom_col(position = "dodge") 
+
+
+taxa_cliques %>% 
+  filter(num_clicks > 0) %>%
+  ggplot(aes(x = date, y =  taxa_cliques )) + 
+  geom_col() 
+
+
+
 ```
+
+
+Em x por cento das buscas que não (retornaram vazias?) de cada dia em cada grupo, as pessoas clicaram em y links. Esta resposta está respondendo à pergunta certa?
+
+Acho que o último gráfico responde melhor o/
+
+
+```{r}
+
+taxa_cliques_group <- buscas %>%
+  filter(results >= 1, !is.na(num_clicks)) %>%
+  group_by(date, group, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques_group = n / sum(n) * 100) 
+
+taxa_cliques_group
+
+
+taxa_cliques_group %>% 
+  ggplot(aes(x= num_clicks, y = taxa_cliques_group, fill = date)) + 
+  geom_col(position = "dodge") +
+  facet_grid(group ~ .)
+
+taxa_cliques_group %>% 
+  filter(num_clicks > 0) %>%
+  ggplot(aes(x = date, y =  taxa_cliques_group )) + 
+  geom_col() +
+  facet_grid(group ~ .)
+  
+
+
+```
+
+
+####Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+
+```{r}
+
+buscas  %>%
+  filter(!is.na(first_click)) %>%
+  ggplot(aes(x = first_click)) +
+  scale_y_log10() +
+  geom_histogram(binwidth = 1, fill = "darkcyan")
+
+```
+```{r}
+buscas  %>%
+  filter(!is.na(first_click)) %>%
+  arrange(date) %>%
+  ggplot(aes(x =  first_click, fill = date )) +
+  geom_histogram(binwidth = 5)  +
+  facet_wrap(~ date, ncol = 3)
+
+
+```
+
+
+####Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+
+```{r}
+
+taxa_res <- buscas %>%
+  group_by(results) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_res = n / sum(n) * 100) 
+
+taxa_res
+
+
+taxa_res %>% 
+  filter(results == 0) %>% 
+  ggplot(aes(x= "resultados zero", y = taxa_res )) + 
+  geom_col(width = .1, alpha = .5) 
+
+```
+
+
+
+```{r}
+
+taxa_res_group <- buscas %>%
+  group_by(group, results) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_res_group = n / sum(n) * 100) 
+
+taxa_res_group
+
+
+taxa_res_group %>% 
+  filter(results == 0) %>% 
+  ggplot(aes(x = group, y = taxa_res_group )) + 
+  geom_col(width = .1, alpha = .5) 
+
+```
+
+
+
+
+
+####A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
+
+```{r}
+
+duracao_sessao <- buscas %>%
+  arrange(session_start_date) %>%
+  group_by(session_id, group) %>%
+  summarise(
+    duracao_sessao = difftime(last(session_end_date), first(session_start_date), tz = "UTC", units="secs"))
+
+duracao_sessao
+
+duracao_sessao %>%
+  ggplot(aes(x = group, as.numeric(duracao_sessao))) +
+  geom_jitter(alpha = .5, aes(col = group)) +
+  scale_y_log10()
+  
+```
+
+
+
 
