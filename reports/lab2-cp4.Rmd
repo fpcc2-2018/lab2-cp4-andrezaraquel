@@ -257,7 +257,7 @@ buscas  %>%
 
 O gráfico abaixo responde à primeira pergunta. Podemos observar que a altura da barra vai até 18.48% que é a taxa de pesquisas que não retornaram nenhum resultado. Essa taxa está considerando todos os dias de dados para os dois grupos presentes *a* e *b*.
 
-As duas variáveis de interesse estão codificadas nos dois canais principais, e isso facilita muito a visualização da informação. Aqui foi usada a coluna como marca.
+As duas variáveis de interesse estão codificadas nos dois canais principais, e isso facilita muito a visualização da informação. Aqui foram usados a coluna e o texto representando a taxa como marcas. O texto proporciona a visualização do valor exato da altura da coluna.
 
 
 ```{r}
@@ -280,7 +280,7 @@ taxa_res %>%
 
 Quando separamos os grupos para responder à segunda pergunta, obtemos os resultados apresentaados abaixo. Podemos ver que há uma pequena diferença nas taxas de pesquisas que retornaram nenhum resultado. O grupo *a* retornou um pouco menos de resultados vazios: 18.42%, enquanto que no grupo *b*, 18.62% das pesquisas realizadas não retornaram resultados. 
 
-Novamente, as duas informações principais estão codificadas nos canais principais, facilitando a visualização.
+Novamente, as duas informações principais estão codificadas nos canais principais, facilitando a visualização. Novamente, a coluna e o texto representando a taxa foram usados como marcas.O texto proporciona a visualização do valor exato da altura da coluna.
 
 
 ```{r}
