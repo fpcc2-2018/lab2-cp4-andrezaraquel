@@ -1,0 +1,201 @@
+---
+title: "Lab 3 - Checkpoint 1 - Andreza Raquel"
+output:
+  html_document:
+    df_print: paged
+---
+
+"De fato, os dados de acesso a projetos da wikimedia que utilizamos no problema 2 são dados de uma amostra dos usuários, e não da população.
+
+Sabendo disso, produza uma versão resumida do relatório que você fez para o Lab 2, CP 4, que:
+
+1. responde as 3 primeiras perguntas da tarefa original utilizando inferência estatística realizada através de intervalos de confiança e bootstrap.
+
+2. testa o que acontece se para a pergunta 1, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
+
+Ressalte em seu relatório a conclusão possível sobre a população que você está fazendo a partir da inferência.  Lembre de escrever uma frase com o vocabulário do domínio do problema explicando seu achado, e de formalizá-la em nível de confiança. Comente tanto significância (estatística) quanto relevância prática de diferenças que você venha a encontrar."
+
+
+
+##Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation usando inferência estatística
+
+O objetivo desse documento é produzir uma versão resumida do relatório anterior. Vamos adicionar a inferência estatística, realizada através de intervalos de confiança e bootstrap, para analisar os dados de eventos (event logging (EL)) capturados pela Wikimedia Foundation. 
+
+O conjunto de dados vem de um esquema de rastreamento usado na empresa para avaliar a satisfação do usuário. Os usuários são escolhidos aleatoriamente para serem rastreados anonimamente por esse esquema que usa um sistema de ping "Estou vivo", que permite estimar por quanto tempo os usuários permanecem nas páginas que visitam. O conjunto de dados contém apenas pouco mais de uma semana de dados de EL.
+
+Nossa análise busca tocar nos seguintes pontos:
+
+* Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+* Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+* Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+* A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
+
+
+Durante todo documento, vamos utilizar conceitos de marcas e canais, para isso vamos definir o que eles significam:
+
+* **Marcas:** são as primitivas gráficas através das quais a informação é transmitida. Podem ser pontos, colunas, áreas, etc.
+* **Canais:** são os parâmetros das primitivas. Podem ser: posição (horizontal, vertical), a cor, o tamanho, etc.
+
+O objetivo é entendermos como a utilização de diferentes marcas e canais influencia na eficácia da visualização.
+
+###Importando as bibliotecas necessárias e lendo os dados
+
+```{r setup, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+library(lubridate)
+library(knitr)
+library(ggplot2)
+library(resample) # <-- Para bootstrap!
+library(boot) # <-- Para bootstrap!
+
+theme_set(theme_bw())
+```
+
+Após importar as bibliotecas acima, vamos ler os dados que foram formatados e salvos no documento search_data.csv. Esse documento contém as seguintes colunas:
+
+* **session_id:** Um ID exclusivo que identifica sessões individuais;
+* **search_index:** Número da busca realizada pelo usuário na sessão;
+* **session_start_timestamp:** Timestamp do início da pesquisa;
+* **session_end_timestamp:** Timestamp do fim da pesquisa;
+* **session_start_date:** Data e hora do início da pesquisa;
+* **session_end_date:** Data e hora do fim da pesquisa;
+* **checkin:** Por quanto tempo a página permaneceu aberta;
+* **group:** Um label ("a" ou "b");
+* **results:** Número de ocorrências retornadas ao usuário;
+* **num_clicks:** Número de ocorrências clicadas pelo usuário;
+* **first_click:** Posição da ocorrência que o usuário clicou primeiro.
+
+```{r ETL}
+buscas = read_csv(here::here("data/search_data.csv"))
+
+```
+
+Agora, vamos adicionar mais uma coluna aos dados para facilitar as visualizações. Essa coluna vai se chamar *date* e será a data do início da pesquisa, sem conter a hora que ela aconteceu. Será derivada da coluna já existente *session_start_timestamp*.
+
+```{r}
+buscas = buscas  %>%
+  mutate(
+    date = as.character(as.Date(round_date(ymd_hms(session_start_timestamp))), 
+    unit = "day"))
+
+```
+
+
+Em nossas análises precisaremos que algumas colunas em específico estejam consistentes entre si. É lógico, pelo que sabemos dos dados, que o primeiro clique do usuário só pode ser um número entre 1 e o número de resultados retornado na pesquisa. É fácil perceber também que se o número de cliques for maior ou igual a zero, significa que a coluna *first_click* deve estar devidamente preenchida. 
+
+
+Vejamos se os dados ferem essas premissas:
+
+```{r}
+premissa1 = buscas %>%
+  filter(first_click > results )
+glimpse(premissa1)
+
+premissa2 =  buscas %>%
+  filter(is.na(first_click) & num_clicks > 0)
+glimpse(premissa2)
+
+numero_cliques = buscas %>%
+  filter(num_clicks > results)
+glimpse(numero_cliques)
+
+```
+
+
+Aqui vemos que as consultas das premissas acima não retornaram vazias, o que significa que algo está estranho. Analizando os resultados, preferiu-se tirar esses dados "problemáticos" das buscas.
+
+Outro fato interessante observado foi que, em alguns casos, o número de cliques é maior que o número de resultados retornados. O que podemos deduzir disso é que o usuário clicou no mesmo link várias vezes, portanto faz sentido manter esses dados e não considerá-los como "sujeiras".
+
+Façamos a limpeza dos dados:
+
+
+```{r}
+buscas = buscas %>%
+  filter((first_click <= results) | (is.na(first_click) & num_clicks == 0))
+
+```
+
+
+Feito isso, vamos começar com a seguinte perguta:
+
+####Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+
+```{r}
+
+taxa_cliques <- buscas %>%
+  filter(results >= 1, !is.na(num_clicks)) %>%
+  group_by(date, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques = n / sum(n) * 100)  
+
+taxa_cliques <- taxa_cliques %>% 
+  filter(num_clicks > 0) %>% 
+  group_by(date) %>% 
+  summarise(taxa_cliques = sum(taxa_cliques))
+
+summary(taxa_cliques)
+
+
+fun.boot <- function(x, i) {
+    mean(x[i])
+}
+
+res.boot <- boot(data = taxa_cliques$taxa_cliques, 
+                 statistic = fun.boot, 
+                 R = 5000)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "bca")
+
+
+
+#----------Por grupos-------------------------------
+
+taxa_cliques_group <- buscas %>%
+  filter(results >= 1, !is.na(num_clicks)) %>%
+  group_by(date, group, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques_group = n / sum(n) * 100) 
+
+
+taxa_cliques_group <- taxa_cliques_group %>% 
+  filter(num_clicks > 0) %>% 
+  group_by(date, group) %>% 
+  summarise(taxa_cliques_group = sum(taxa_cliques_group))
+
+
+summary(taxa_cliques_group)
+
+
+funcao_bootstrap <- function(dado, indices){
+    d = dado %>% 
+      slice(indices) %>% 
+      group_by(group) %>% 
+      summarise(media_grupo = mean(taxa_cliques_group)) %>% 
+      pull(media_grupo)
+    
+    return(d[1] - d[2])
+}
+
+bootstraps <- boot(data = taxa_cliques_group, 
+                   statistic = funcao_bootstrap, # <- referência para a função 
+                   R = 2000) # número de bootstraps
+
+glimpse(bootstraps$t)
+
+#mudar para fazer a média das médias dentro da função de bootstrap porque  está dando errado assim
+
+boot.ci(bootstraps, conf = 0.95, type = "bca")
+
+
+```
+
+
+####Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+
+```{r}
+
+
+
+```
+
+####Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
