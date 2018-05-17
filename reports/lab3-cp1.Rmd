@@ -5,38 +5,20 @@ output:
     df_print: paged
 ---
 
-"De fato, os dados de acesso a projetos da wikimedia que utilizamos no problema 2 são dados de uma amostra dos usuários, e não da população.
-
-Sabendo disso, produza uma versão resumida do relatório que você fez para o Lab 2, CP 4, que:
-
-1. responde as 3 primeiras perguntas da tarefa original utilizando inferência estatística realizada através de intervalos de confiança e bootstrap.
-
-2. testa o que acontece se para a pergunta 1, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
-
-Ressalte em seu relatório a conclusão possível sobre a população que você está fazendo a partir da inferência.  Lembre de escrever uma frase com o vocabulário do domínio do problema explicando seu achado, e de formalizá-la em nível de confiança. Comente tanto significância (estatística) quanto relevância prática de diferenças que você venha a encontrar."
-
-
-
 ##Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation usando inferência estatística
 
-O objetivo desse documento é produzir uma versão resumida do relatório anterior. Vamos adicionar a inferência estatística, realizada através de intervalos de confiança e bootstrap, para analisar os dados de eventos (event logging (EL)) capturados pela Wikimedia Foundation. 
+####Utilizando intervalos de confiança e bootstrap
+
+O objetivo desse documento é produzir uma versão resumida do relatório anterior. Vamos adicionar a inferência estatística, realizada através de intervalos de confiança e bootstrap, já que os dados da wikimedia que utilizamos no relatório anterior são dados de uma amostra dos usuários, e não da população. 
 
 O conjunto de dados vem de um esquema de rastreamento usado na empresa para avaliar a satisfação do usuário. Os usuários são escolhidos aleatoriamente para serem rastreados anonimamente por esse esquema que usa um sistema de ping "Estou vivo", que permite estimar por quanto tempo os usuários permanecem nas páginas que visitam. O conjunto de dados contém apenas pouco mais de uma semana de dados de EL.
 
 Nossa análise busca tocar nos seguintes pontos:
 
 * Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+* O que acontece se para a pergunta anterior, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
 * Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
 * Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
-* A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
-
-
-Durante todo documento, vamos utilizar conceitos de marcas e canais, para isso vamos definir o que eles significam:
-
-* **Marcas:** são as primitivas gráficas através das quais a informação é transmitida. Podem ser pontos, colunas, áreas, etc.
-* **Canais:** são os parâmetros das primitivas. Podem ser: posição (horizontal, vertical), a cor, o tamanho, etc.
-
-O objetivo é entendermos como a utilização de diferentes marcas e canais influencia na eficácia da visualização.
 
 ###Importando as bibliotecas necessárias e lendo os dados
 
@@ -117,85 +99,223 @@ buscas = buscas %>%
 ```
 
 
+OBS: Utilizaremos a biblioteca boot, com um número de bootstraps igual a 2000 nas nossas análises.
+
 Feito isso, vamos começar com a seguinte perguta:
 
 ####Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
 
+
+
 ```{r}
+set.seed(123)
 
-taxa_cliques <- buscas %>%
-  filter(results >= 1, !is.na(num_clicks)) %>%
-  group_by(date, num_clicks) %>%
-  summarise(n = n()) %>% 
-  mutate(taxa_cliques = n / sum(n) * 100)  
+buscasCliques <- buscas %>%
+  filter(results >= 1, !is.na(num_clicks))
 
-taxa_cliques <- taxa_cliques %>% 
-  filter(num_clicks > 0) %>% 
-  group_by(date) %>% 
-  summarise(taxa_cliques = sum(taxa_cliques))
+fun.boot <- function(dado, indices) {
+  
+  taxa_cliques <- dado %>%
+    slice(indices) %>%
+    arrange(date) %>%
+    group_by(date, num_clicks) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_cliques = n / sum(n) * 100) %>%
+    ungroup()
 
-summary(taxa_cliques)
-
-
-fun.boot <- function(x, i) {
-    mean(x[i])
+  
+  taxas = taxa_cliques %>%
+    filter(num_clicks > 0) %>%
+    group_by(date) %>%
+    summarise(taxa_cliques = sum(taxa_cliques)) %>%
+    pull(taxa_cliques)
+  
+  return(mean(taxas))
 }
 
-res.boot <- boot(data = taxa_cliques$taxa_cliques, 
+res.boot <- boot(data = buscasCliques, 
                  statistic = fun.boot, 
-                 R = 5000)
-boot.ci(boot.out = res.boot, conf = 0.95, type = "bca")
+                 R = 2000)
 
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
 
+```
+ 
+ Podemos perceber que a média das taxas de cliques diárias na população, com 95% de confiança, está no intervalo de 29.44 a 30.00. 
+ 
+ Abaixo podemos ver o intervalo de confiança da diferença das médias das taxas de cliques diárias dos grupos *a* e *b*.
 
-#----------Por grupos-------------------------------
+```{r}
+#----------------------Por grupos A/B-----------------------
 
-taxa_cliques_group <- buscas %>%
-  filter(results >= 1, !is.na(num_clicks)) %>%
+set.seed(123)
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_cliques_group <- dado %>%
+  slice(indices) %>%
   group_by(date, group, num_clicks) %>%
   summarise(n = n()) %>% 
-  mutate(taxa_cliques_group = n / sum(n) * 100) 
+  mutate(taxa_cliques_group = n / sum(n) * 100) %>%
+  ungroup()
 
 
-taxa_cliques_group <- taxa_cliques_group %>% 
-  filter(num_clicks > 0) %>% 
-  group_by(date, group) %>% 
-  summarise(taxa_cliques_group = sum(taxa_cliques_group))
+taxas_group_a <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, group == "a") %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+taxas_group_b <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, group == "b") %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
 
 
-summary(taxa_cliques_group)
-
-
-funcao_bootstrap <- function(dado, indices){
-    d = dado %>% 
-      slice(indices) %>% 
-      group_by(group) %>% 
-      summarise(media_grupo = mean(taxa_cliques_group)) %>% 
-      pull(media_grupo)
-    
-    return(d[1] - d[2])
+  return(mean(taxas_group_a) - mean(taxas_group_b))
 }
 
-bootstraps <- boot(data = taxa_cliques_group, 
-                   statistic = funcao_bootstrap, # <- referência para a função 
-                   R = 2000) # número de bootstraps
+res.boot <- boot(data = buscasCliques, 
+                 statistic = fun.boot, 
+                 R = 2000)
 
-glimpse(bootstraps$t)
-
-#mudar para fazer a média das médias dentro da função de bootstrap porque  está dando errado assim
-
-boot.ci(bootstraps, conf = 0.95, type = "bca")
-
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic") 
 
 ```
 
+Como é possível ver acima, o intervalo deu positivo, ou seja, não houve interseção com o *zero*. Isso significa que, na população e com 95% de confiança, a média das taxas diárias de cliques do grupo *a* é maior que a média das taxas diárias de cliques do grupo *b*.
 
-####Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+#### O que acontece se para a pergunta anterior, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A)?
+
 
 ```{r}
+#----------Por grupos A/A-------------------------------
 
+set.seed(123)
+
+buscas_grupoA <- buscasCliques %>%
+  filter(group == "a")
+
+#gerando uma amostra aleatória dos registros do grupo A
+amostra_grupo_a = sample_frac(buscas_grupoA, 0.5, replace = FALSE) %>%
+  mutate(grupoA = 1)
+
+#gerando outra amostra aleatória dos registros do grupo A
+amostra_grupo_a2 = sample_frac(buscas_grupoA, 0.5, replace = FALSE) %>%
+  mutate(grupoA = 2)
+
+amostras_grupo_aa = bind_rows(amostra_grupo_a, amostra_grupo_a2)
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_cliques_group <- dado %>%
+  slice(indices) %>%
+  group_by(date, grupoA, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques_group = n / sum(n) * 100) %>%
+  ungroup()
+
+
+taxas_group_a <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, grupoA == 1) %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+taxas_group_a2 <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, grupoA == 2) %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+
+  return(mean(taxas_group_a) - mean(taxas_group_a2))
+}
+
+res.boot <- boot(data = amostras_grupo_aa, 
+                 statistic = fun.boot, 
+                 R = 2000)
+
+
+summary(res.boot$t)
+
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic") 
+
+```
+
+Como podemos ver o intervalo indicado pela biblioteca boot deu interseção com o *zero* (-1.0339,  0.3510). Isso significa que, com 95% de confiança, não há como dizer que existe diferença entre médias das taxas da população de onde as duas amostras foram retiradas.
+
+
+####Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+
+```{r}
+set.seed(123)
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_res <- dado %>%
+    slice(indices) %>%
+    group_by(results) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_res = n / sum(n) * 100)  %>%
+    ungroup()
+  
+  taxa_res <- taxa_res %>% 
+    filter(results == 0)
+  
+  return(taxa_res$taxa_res)
+}
+
+res.boot <- boot(data = buscas, 
+                 statistic = fun.boot, 
+                 R = 2000)
+
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
 
 
 ```
 
-####Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+Com 95% de confiança, podemos dizer que a média das taxas de resultados zero no geral na população está no intervalo de 18.28 a 18.69.
+
+
+```{r}
+set.seed(123)
+
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_res_group <- dado %>%
+    slice(indices) %>%
+    group_by(group, results) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_res_group = n / sum(n) * 100)  %>%
+    ungroup()
+  
+  taxa_res_group_a <- taxa_res_group %>% 
+    filter(results == 0, group == "a") %>%
+    pull(taxa_res_group)
+  
+  taxa_res_group_b <- taxa_res_group %>% 
+    filter(results == 0, group == "b") %>%
+    pull(taxa_res_group)
+  
+  return(taxa_res_group_a - taxa_res_group_b)
+}
+
+res.boot <- boot(data = buscas, 
+                 statistic = fun.boot, 
+                 R = 2000)
+
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
+
+
+```
+
+Podemos ver acima que a diferença das médias das taxas de resultados zero no geral gerou um intervalo que faz interseção com o *zero*. Isso significa, que não há evidências suficientes, com 95% de confiança, que exista diferença entre as médias das taxas de resultados zero na população dos grupos *a* e *b*.
+
