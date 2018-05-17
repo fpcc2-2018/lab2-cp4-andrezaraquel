@@ -2,6 +2,9 @@
 
 A análise realizada está disponível no link: http://rpubs.com/andrezaraquel/lab2-parte4-fpcc2
 
+O relatório usando intervalos de confiança está disponível no link:
+http://rpubs.com/andrezaraquel/IC-FPCC2-AndrezaRaquel 
+
 # Sessões, buscas e navegação na wikimedia
 
 Este repo é a semente para uma análise de padrões de busca e navegação em páginas de projetos da wikimedia (provavelmente wikipedia).
