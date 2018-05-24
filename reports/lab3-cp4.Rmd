@@ -1,0 +1,385 @@
+---
+title: "Lab 3 - Checkpoint 4 - Andreza Raquel"
+output:
+  html_document:
+    df_print: paged
+---
+
+##Realizando uma análise exploratória em um sample de log de eventos da Wikimedia Foundation usando inferência estatística e testes de hipótese
+
+###1. Objetivos e background
+
+O objetivo desse documento é produzir uma versão resumida dos relatórios anteriores encontrados [aqui](http://rpubs.com/andrezaraquel/lab2-parte4-fpcc2) e [aqui](http://rpubs.com/andrezaraquel/IC-FPCC2-AndrezaRaquel). O relatório anterior trata da inferência estatística, realizada através de intervalos de confiança (IC) e bootstrap. 
+
+Nesse relatório, vamos escolher duas das perguntas do relatório anterior e respondê-las utilizando um teste de hipótese com permutação, a fim de comparar os resultados obtidos com testes de hipóteses e com IC, bem como as vantagens e desvantagens de cada método.
+
+Para a análise com IC, utilizaremos a biblioteca boot com um número de bootstraps igual a 2000.
+
+
+O conjunto de dados vem de um esquema de rastreamento usado na empresa para avaliar a satisfação do usuário. Os usuários são escolhidos aleatoriamente para serem rastreados anonimamente por esse esquema que usa um sistema de ping "Estou vivo", que permite estimar por quanto tempo os usuários permanecem nas páginas que visitam. O conjunto de dados contém apenas pouco mais de uma semana de dados de EL.
+
+Nossa análise busca tocar nos seguintes pontos:
+
+* Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+* O que acontece se para a pergunta anterior, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
+* Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+* Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+###2. Bibliotecas
+
+Importando as bibliotecas necessárias e lendo os dados:
+
+```{r setup, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+library(lubridate)
+library(knitr)
+library(ggplot2)
+library(resample) # <-- Para bootstrap!
+library(boot) # <-- Para bootstrap!
+
+theme_set(theme_bw())
+```
+
+###3. Dados
+
+Após importar as bibliotecas acima, vamos ler os dados que foram formatados e salvos no documento search_data.csv. Esse documento contém as seguintes colunas:
+
+* **session_id:** Um ID exclusivo que identifica sessões individuais;
+* **search_index:** Número da busca realizada pelo usuário na sessão;
+* **session_start_timestamp:** Timestamp do início da pesquisa;
+* **session_end_timestamp:** Timestamp do fim da pesquisa;
+* **session_start_date:** Data e hora do início da pesquisa;
+* **session_end_date:** Data e hora do fim da pesquisa;
+* **checkin:** Por quanto tempo a página permaneceu aberta;
+* **group:** Um label ("a" ou "b");
+* **results:** Número de ocorrências retornadas ao usuário;
+* **num_clicks:** Número de ocorrências clicadas pelo usuário;
+* **first_click:** Posição da ocorrência que o usuário clicou primeiro.
+
+####3.1. Lendo dos dados
+
+```{r ETL}
+buscas = read_csv(here::here("data/search_data.csv"))
+
+```
+
+Agora, vamos adicionar mais uma coluna aos dados para facilitar as visualizações. Essa coluna vai se chamar *date* e será a data do início da pesquisa, sem conter a hora que ela aconteceu. Será derivada da coluna já existente *session_start_timestamp*.
+
+```{r}
+buscas = buscas  %>%
+  mutate(
+    date = as.character(as.Date(round_date(ymd_hms(session_start_timestamp))), 
+    unit = "day"))
+
+```
+
+####3.2. Limpeza dos dados
+
+Em nossas análises precisaremos que algumas colunas em específico estejam consistentes entre si. É lógico, pelo que sabemos dos dados, que o primeiro clique do usuário só pode ser um número entre 1 e o número de resultados retornado na pesquisa. É fácil perceber também que se o número de cliques for maior ou igual a zero, significa que a coluna *first_click* deve estar devidamente preenchida. 
+Vejamos se os dados ferem essas premissas:
+
+```{r}
+premissa1 = buscas %>%
+  filter(first_click > results )
+glimpse(premissa1)
+
+premissa2 =  buscas %>%
+  filter(is.na(first_click) & num_clicks > 0)
+glimpse(premissa2)
+
+numero_cliques = buscas %>%
+  filter(num_clicks > results)
+glimpse(numero_cliques)
+
+```
+
+
+Aqui vemos que as consultas das premissas acima não retornaram vazias, o que significa que algo está estranho. Analizando os resultados, preferiu-se tirar esses dados "problemáticos" das buscas.
+
+Outro fato interessante observado foi que, em alguns casos, o número de cliques é maior que o número de resultados retornados. O que podemos deduzir disso é que o usuário clicou no mesmo link várias vezes, portanto faz sentido manter esses dados e não considerá-los como "sujeiras".
+
+Façamos a limpeza dos dados:
+
+```{r}
+buscas = buscas %>%
+  filter((first_click <= results) | (is.na(first_click) & num_clicks == 0))
+
+```
+
+
+###4. Questões
+
+Feito isso, vamos começar com a seguinte perguta:
+
+####4.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+
+#####4.1.1 Utilizando intervalo de confiança
+
+```{r}
+set.seed(123)
+
+buscasCliques <- buscas %>%
+  filter(results >= 1, !is.na(num_clicks))
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_cliques <- dado %>%
+    slice(indices) %>%
+    arrange(date) %>%
+    group_by(date, num_clicks) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_cliques = n / sum(n) * 100) %>%
+    ungroup()
+
+  
+  taxas = taxa_cliques %>%
+    filter(num_clicks > 0) %>%
+    group_by(date) %>%
+    summarise(taxa_cliques = sum(taxa_cliques)) %>%
+    pull(taxa_cliques)
+  
+  return(mean(taxas))
+}
+
+res.boot <- boot(data = buscasCliques, 
+                 statistic = fun.boot, 
+                 R = 10)
+
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
+
+```
+ 
+ Podemos perceber que a média das taxas de cliques diárias na população, com 95% de confiança, está no intervalo de 29.44% a 30.00%. 
+ 
+ Abaixo podemos ver o intervalo de confiança da diferença das médias das taxas de cliques diárias dos grupos *a* e *b*.
+
+```{r}
+#----------------------Por grupos A/B-----------------------
+
+set.seed(123)
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_cliques_group <- dado %>%
+  slice(indices) %>%
+  group_by(date, group, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques_group = n / sum(n) * 100) %>%
+  ungroup()
+
+
+taxas_group_a <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, group == "a") %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+taxas_group_b <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, group == "b") %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+
+  return(mean(taxas_group_a) - mean(taxas_group_b))
+}
+
+res.boot <- boot(data = buscasCliques, 
+                 statistic = fun.boot, 
+                 R = 10)
+
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic") 
+
+```
+
+Como é possível ver acima, o intervalo deu positivo, ou seja, não houve interseção com o *zero*. Isso significa que, na população e com 95% de confiança, a média das taxas diárias de cliques do grupo *a* é maior que a média das taxas diárias de cliques do grupo *b*.
+
+
+#####4.1.2. Utilizando teste de hipótese
+
+
+```{r}
+#----------------------Por grupos A/B-----------------------
+
+set.seed(123)
+
+fun.taxa <- function(dado) {
+  
+  taxa_cliques <- dado %>%
+    arrange(date) %>%
+    group_by(date, num_clicks) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_cliques = n / sum(n) * 100) %>%
+    ungroup()
+
+  
+  taxas = taxa_cliques %>%
+    filter(num_clicks > 0) %>%
+    group_by(date) %>%
+    summarise(taxa_cliques = sum(taxa_cliques)) %>%
+    pull(taxa_cliques)
+  
+  return(mean(taxas))
+}
+
+permutationTest2(buscasCliques, fun.taxa(buscasCliques), treatment = group)
+
+```
+
+Resultado que preciso entender: 
+[
+permutationTest2(data = buscasCliques, statistic = fun.taxa(buscasCliques), 
+    treatment = group)
+Replications: 9999
+Two samples, sample sizes are 1392 659
+
+Summary Statistics for the difference between samples 1 and 2:
+                             Observed         Mean Alternative PValue
+fun.taxa(buscasCliques): a-b 11.96351 -0.007092963   two.sided  2e-04
+]
+
+
+####4.2 O que acontece se para a pergunta anterior, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A)?
+
+
+```{r}
+#----------Por grupos A/A-------------------------------
+
+set.seed(123)
+
+buscas_grupoA <- buscasCliques %>%
+  filter(group == "a")
+
+#gerando uma amostra aleatória dos registros do grupo A
+amostra_grupo_a = sample_frac(buscas_grupoA, 0.5, replace = FALSE) %>%
+  mutate(grupoA = 1)
+
+#gerando outra amostra aleatória dos registros do grupo A
+amostra_grupo_a2 = sample_frac(buscas_grupoA, 0.5, replace = FALSE) %>%
+  mutate(grupoA = 2)
+
+amostras_grupo_aa = bind_rows(amostra_grupo_a, amostra_grupo_a2)
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_cliques_group <- dado %>%
+  slice(indices) %>%
+  group_by(date, grupoA, num_clicks) %>%
+  summarise(n = n()) %>% 
+  mutate(taxa_cliques_group = n / sum(n) * 100) %>%
+  ungroup()
+
+
+taxas_group_a <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, grupoA == 1) %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+taxas_group_a2 <- taxa_cliques_group %>% 
+  filter(num_clicks > 0, grupoA == 2) %>%
+  group_by(date) %>%
+  summarise(taxas_cliques_group = sum(taxa_cliques_group)) %>%
+  pull(taxas_cliques_group)
+
+
+  return(mean(taxas_group_a) - mean(taxas_group_a2))
+}
+
+res.boot <- boot(data = amostras_grupo_aa, 
+                 statistic = fun.boot, 
+                 R = 10)
+
+
+summary(res.boot$t)
+
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic") 
+
+```
+
+Como podemos ver o intervalo indicado pela biblioteca boot deu interseção com o *zero* (-1.0339,  0.3510). Isso significa que, com 95% de confiança, não há como dizer que existe diferença entre médias das taxas da população de onde as duas amostras foram retiradas.
+
+
+####4.3 Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+
+#####4.3.1 Utilizando intervalo de confiança
+
+```{r}
+set.seed(123)
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_res <- dado %>%
+    slice(indices) %>%
+    group_by(results) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_res = n / sum(n) * 100)  %>%
+    ungroup()
+  
+  taxa_res <- taxa_res %>% 
+    filter(results == 0)
+  
+  return(taxa_res$taxa_res)
+}
+
+res.boot <- boot(data = buscas, 
+                 statistic = fun.boot, 
+                 R = 10)
+
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
+
+
+```
+
+Com 95% de confiança, podemos dizer que a média das taxas de resultados zero no geral na população está no intervalo de 18.28 a 18.69.
+
+
+```{r}
+set.seed(123)
+
+
+fun.boot <- function(dado, indices) {
+  
+  taxa_res_group <- dado %>%
+    slice(indices) %>%
+    group_by(group, results) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_res_group = n / sum(n) * 100)  %>%
+    ungroup()
+  
+  taxa_res_group_a <- taxa_res_group %>% 
+    filter(results == 0, group == "a") %>%
+    pull(taxa_res_group)
+  
+  taxa_res_group_b <- taxa_res_group %>% 
+    filter(results == 0, group == "b") %>%
+    pull(taxa_res_group)
+  
+  return(taxa_res_group_a - taxa_res_group_b)
+}
+
+res.boot <- boot(data = buscas, 
+                 statistic = fun.boot, 
+                 R = 10)
+
+summary(res.boot$t)
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
+
+
+```
+
+Podemos ver acima que a diferença das médias das taxas de resultados zero no geral gerou um intervalo que faz interseção com o *zero*. Isso significa, que não há evidências suficientes, com 95% de confiança, que exista diferença entre as médias das taxas de resultados zero na população dos grupos *a* e *b*.
+
+#####4.3.2. Utilizando teste de hipótese
+
+
+
+
+###5. Conclusões
+
+Colocar aqui as diferenças entre IC e teste de hipótese talvez
