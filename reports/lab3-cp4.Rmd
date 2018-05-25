@@ -11,10 +11,10 @@ output:
 
 O objetivo desse documento é produzir uma versão resumida dos relatórios anteriores encontrados [aqui](http://rpubs.com/andrezaraquel/lab2-parte4-fpcc2) e [aqui](http://rpubs.com/andrezaraquel/IC-FPCC2-AndrezaRaquel). O relatório anterior trata da inferência estatística, realizada através de intervalos de confiança (IC) e bootstrap. 
 
-Nesse relatório, vamos escolher duas das perguntas do relatório anterior e respondê-las utilizando um teste de hipótese com permutação, a fim de comparar os resultados obtidos com testes de hipóteses e com IC, bem como as vantagens e desvantagens de cada método.
+Nesse relatório, vamos escolher duas das perguntas (ver tópicos 4.1.2 e 4.3.2) do relatório anterior e respondê-las utilizando um teste de hipótese two-sided com permutação, a fim de comparar os resultados obtidos com testes de hipóteses e com IC, bem como as vantagens e desvantagens de cada método.
 
 Para a análise com IC, utilizaremos a biblioteca boot com um número de bootstraps igual a 2000.
-
+Para a análise com testes de hipótese, utilizaremos a biblioteca resample e a função permutationTest2.
 
 O conjunto de dados vem de um esquema de rastreamento usado na empresa para avaliar a satisfação do usuário. Os usuários são escolhidos aleatoriamente para serem rastreados anonimamente por esse esquema que usa um sistema de ping "Estou vivo", que permite estimar por quanto tempo os usuários permanecem nas páginas que visitam. O conjunto de dados contém apenas pouco mais de uma semana de dados de EL.
 
@@ -24,6 +24,10 @@ Nossa análise busca tocar nos seguintes pontos:
 * O que acontece se para a pergunta anterior, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
 * Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
 * Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+Para mais informações sobre intervalos de confiança ver https://github.com/nazareno/fpcc2/blob/master/03-inferencia/3-inferencia-2-amostras.Rmd
+
+Para mais informações sobre testes de hipóteses ver https://github.com/nazareno/fpcc2/blob/master/03-inferencia/5-permutacao-p-valores.Rmd
 
 ###2. Bibliotecas
 
@@ -144,7 +148,7 @@ fun.boot <- function(dado, indices) {
 
 res.boot <- boot(data = buscasCliques, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)
 boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
@@ -188,7 +192,7 @@ taxas_group_b <- taxa_cliques_group %>%
 
 res.boot <- boot(data = buscasCliques, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)
 boot.ci(boot.out = res.boot, conf = 0.95, type = "basic") 
@@ -200,6 +204,12 @@ Como é possível ver acima, o intervalo deu positivo, ou seja, não houve inter
 
 #####4.1.2. Utilizando teste de hipótese
 
+Utilizando testes de hipótese, podemos verificar se existe variação nas taxas de cliques dos grupos *a* e *b*. Para isso, vamos elaboras as hipótes:
+
+H0: Não existe variação entre a média das taxas diárias de cliques dos grupos *a* e *b*. (hipótese nula)
+H1: Existe variação entre a média das taxas diárias de cliques dos grupos *a* e *b*.
+
+Abaixo, vamos permutar a variável *groups*, indicando o treatment =  group.
 
 ```{r}
 #----------------------Por grupos A/B-----------------------
@@ -225,21 +235,14 @@ fun.taxa <- function(dado) {
   return(mean(taxas))
 }
 
-permutationTest2(buscasCliques, fun.taxa(buscasCliques), treatment = group)
+buscasCliques.subset <- subset(buscasCliques, select = c("session_id", "group", "num_clicks", "date", "results")) # criando um subset para rodar mais rápido 
+
+permutationTest2(buscasCliques.subset, fun.taxa(buscasCliques.subset), treatment = group)
 
 ```
+Com base no resultado apresentado acima, podemos rejeitar a hipótese nula porque o p-value foi de 2x10^(-4), ou seja, bem pequeno. Então, podemos dizer que há indícios suficientes para afirmar que, na população, há variação entre a média das taxas diárias de cliques dos grupos *a* e *b*, com um certo nível de significância.
 
-Resultado que preciso entender: 
-[
-permutationTest2(data = buscasCliques, statistic = fun.taxa(buscasCliques), 
-    treatment = group)
-Replications: 9999
-Two samples, sample sizes are 1392 659
-
-Summary Statistics for the difference between samples 1 and 2:
-                             Observed         Mean Alternative PValue
-fun.taxa(buscasCliques): a-b 11.96351 -0.007092963   two.sided  2e-04
-]
+Ainda é possível observar que a média da diferença das taxas (*a*-*b*) foi positiva, o que sugere que há indícios de que a média das taxas de *a* é maior que a média das taxas de *b* na população, como observado anteriormente utilizando IC.
 
 
 ####4.2 O que acontece se para a pergunta anterior, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A)?
@@ -291,7 +294,7 @@ taxas_group_a2 <- taxa_cliques_group %>%
 
 res.boot <- boot(data = amostras_grupo_aa, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 
 summary(res.boot$t)
@@ -328,7 +331,7 @@ fun.boot <- function(dado, indices) {
 
 res.boot <- boot(data = buscas, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)
 boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
@@ -336,7 +339,7 @@ boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
 
 ```
 
-Com 95% de confiança, podemos dizer que a média das taxas de resultados zero no geral na população está no intervalo de 18.28 a 18.69.
+Com 95% de confiança, podemos dizer que a média das taxas de resultados zero no geral na população está no intervalo de 18.28% a 18.69%.
 
 
 ```{r}
@@ -365,7 +368,7 @@ fun.boot <- function(dado, indices) {
 
 res.boot <- boot(data = buscas, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)
 boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
@@ -373,13 +376,45 @@ boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
 
 ```
 
-Podemos ver acima que a diferença das médias das taxas de resultados zero no geral gerou um intervalo que faz interseção com o *zero*. Isso significa, que não há evidências suficientes, com 95% de confiança, que exista diferença entre as médias das taxas de resultados zero na população dos grupos *a* e *b*.
+Podemos ver acima que a diferença as taxas de resultados zero no geral gerou um intervalo que faz interseção com o *zero*. Isso significa, que não há evidências suficientes, com 95% de confiança, que exista diferença entre as taxas de resultados zero na população dos grupos *a* e *b*.
 
 #####4.3.2. Utilizando teste de hipótese
 
+Utilizando teste de hipóteses, podemos verificar se há diferença entre as taxas de resultados zero dos grupos *a* e *b*. Vamos às hipótestes:
+H0: As taxas de resultados zero dos grupos *a* e *b* são iguais. (hipótese nula)
+H1: As taxas de resultados zero dos grupos *a* e *b* são diferentes.
+
+Abaixo, vamos permutar a variável *groups*, indicando o treatment =  group.
+
+```{r}
+set.seed(123)
 
 
+fun.taxa.zero <- function(dado) {
+  
+  taxa_res <- dado %>%
+    group_by(results) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_res = n / sum(n) * 100)  %>%
+    ungroup()
+  
+  taxa_res <- taxa_res %>% 
+    filter(results == 0)
+  
+  return(taxa_res$taxa_res)
+}
+
+
+buscas.subset <- subset(buscas, select = c("session_id", "group", "num_clicks", "date", "results")) # criando um subset para rodar mais rápido
+
+permutationTest2(buscas.subset, fun.taxa.zero(buscas.subset), treatment = group)
+
+```
+
+Observando o resultado acima, podemos concluir que não há evidências suficientes para rejeitar a hipótese nula, pois o p-value foi de 0.1232, não foi pequeno. Então, podemos dizer que as taxas de resultados zero dos grupos *a* e *b* são iguais, com um certo nível de significância.
 
 ###5. Conclusões
 
-Colocar aqui as diferenças entre IC e teste de hipótese talvez
+Ao comparar os dois métodos de realizar análises estatísticas (intervalo de confiança e testes de hipóteses), podemos perceber que utilizar IC é sempre melhor por ser mais completo. Isso é evidente no nosso relatório. Utilizando IC, vimos o nível de confiança dos resultados, vimos a faixa em que os valores da população podiam estar, etc. Já utilizando testes de hipóteses, não há como mensurar o nível de confiança do resultado, pois o p-valor não nos dá muita informação. Além disso, testes de hipóteses são sempre preto no branco - ou aceita ou rejeita a hipótese nula -, e sabemos que a vida real é muito mais complexa que isso.
+
+É isso, galera!! Usem sempre IC :).

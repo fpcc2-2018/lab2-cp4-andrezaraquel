@@ -129,8 +129,8 @@ $(document).ready(function () {
 <div id="objetivos-e-background" class="section level3">
 <h3>1. Objetivos e background</h3>
 <p>O objetivo desse documento é produzir uma versão resumida dos relatórios anteriores encontrados <a href="http://rpubs.com/andrezaraquel/lab2-parte4-fpcc2">aqui</a> e <a href="http://rpubs.com/andrezaraquel/IC-FPCC2-AndrezaRaquel">aqui</a>. O relatório anterior trata da inferência estatística, realizada através de intervalos de confiança (IC) e bootstrap.</p>
-<p>Nesse relatório, vamos escolher duas das perguntas do relatório anterior e respondê-las utilizando um teste de hipótese com permutação, a fim de comparar os resultados obtidos com testes de hipóteses e com IC, bem como as vantagens e desvantagens de cada método.</p>
-<p>Para a análise com IC, utilizaremos a biblioteca boot com um número de bootstraps igual a 2000.</p>
+<p>Nesse relatório, vamos escolher duas das perguntas (ver tópicos 4.1.2 e 4.3.2) do relatório anterior e respondê-las utilizando um teste de hipótese two-sided com permutação, a fim de comparar os resultados obtidos com testes de hipóteses e com IC, bem como as vantagens e desvantagens de cada método.</p>
+<p>Para a análise com IC, utilizaremos a biblioteca boot com um número de bootstraps igual a 2000. Para a análise com testes de hipótese, utilizaremos a biblioteca resample e a função permutationTest2.</p>
 <p>O conjunto de dados vem de um esquema de rastreamento usado na empresa para avaliar a satisfação do usuário. Os usuários são escolhidos aleatoriamente para serem rastreados anonimamente por esse esquema que usa um sistema de ping “Estou vivo”, que permite estimar por quanto tempo os usuários permanecem nas páginas que visitam. O conjunto de dados contém apenas pouco mais de uma semana de dados de EL.</p>
 <p>Nossa análise busca tocar nos seguintes pontos:</p>
 <ul>
@@ -139,6 +139,8 @@ $(document).ready(function () {
 <li>Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?</li>
 <li>Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?</li>
 </ul>
+<p>Para mais informações sobre intervalos de confiança ver <a href="https://github.com/nazareno/fpcc2/blob/master/03-inferencia/3-inferencia-2-amostras.Rmd" class="uri">https://github.com/nazareno/fpcc2/blob/master/03-inferencia/3-inferencia-2-amostras.Rmd</a></p>
+<p>Para mais informações sobre testes de hipóteses ver <a href="https://github.com/nazareno/fpcc2/blob/master/03-inferencia/5-permutacao-p-valores.Rmd" class="uri">https://github.com/nazareno/fpcc2/blob/master/03-inferencia/5-permutacao-p-valores.Rmd</a></p>
 </div>
 <div id="bibliotecas" class="section level3">
 <h3>2. Bibliotecas</h3>
@@ -287,31 +289,27 @@ fun.boot &lt;- function(dado, indices) {
 
 res.boot &lt;- boot(data = buscasCliques, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)</code></pre>
 <pre><code>##        V1       
-##  Min.   :29.50  
-##  1st Qu.:29.60  
-##  Median :29.73  
-##  Mean   :29.71  
-##  3rd Qu.:29.76  
-##  Max.   :29.96</code></pre>
+##  Min.   :29.22  
+##  1st Qu.:29.62  
+##  Median :29.71  
+##  Mean   :29.72  
+##  3rd Qu.:29.81  
+##  Max.   :30.17</code></pre>
 <pre class="r"><code>boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)</code></pre>
-<pre><code>## Warning in norm.inter(t, (1 + c(conf, -conf))/2): extreme order statistics
-## used as endpoints</code></pre>
 <pre><code>## BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
-## Based on 10 bootstrap replicates
+## Based on 2000 bootstrap replicates
 ## 
 ## CALL : 
 ## boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)
 ## 
 ## Intervals : 
 ## Level      Basic         
-## 95%   (29.47, 29.93 )  
-## Calculations and Intervals on Original Scale
-## Warning : Basic Intervals used Extreme Quantiles
-## Some basic intervals may be unstable</code></pre>
+## 95%   (29.44, 30.00 )  
+## Calculations and Intervals on Original Scale</code></pre>
 <p>Podemos perceber que a média das taxas de cliques diárias na população, com 95% de confiança, está no intervalo de 29.44% a 30.00%.</p>
 <p>Abaixo podemos ver o intervalo de confiança da diferença das médias das taxas de cliques diárias dos grupos <em>a</em> e <em>b</em>.</p>
 <pre class="r"><code>#----------------------Por grupos A/B-----------------------
@@ -346,35 +344,73 @@ taxas_group_b &lt;- taxa_cliques_group %&gt;%
 
 res.boot &lt;- boot(data = buscasCliques, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)</code></pre>
 <pre><code>##        V1       
-##  Min.   :15.94  
-##  1st Qu.:16.22  
-##  Median :16.36  
-##  Mean   :16.31  
-##  3rd Qu.:16.47  
-##  Max.   :16.53</code></pre>
+##  Min.   :15.43  
+##  1st Qu.:16.10  
+##  Median :16.28  
+##  Mean   :16.28  
+##  3rd Qu.:16.45  
+##  Max.   :17.10</code></pre>
 <pre class="r"><code>boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;) </code></pre>
-<pre><code>## Warning in norm.inter(t, (1 + c(conf, -conf))/2): extreme order statistics
-## used as endpoints</code></pre>
 <pre><code>## BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
-## Based on 10 bootstrap replicates
+## Based on 2000 bootstrap replicates
 ## 
 ## CALL : 
 ## boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)
 ## 
 ## Intervals : 
 ## Level      Basic         
-## 95%   (16.02, 16.60 )  
-## Calculations and Intervals on Original Scale
-## Warning : Basic Intervals used Extreme Quantiles
-## Some basic intervals may be unstable</code></pre>
+## 95%   (15.76, 16.80 )  
+## Calculations and Intervals on Original Scale</code></pre>
 <p>Como é possível ver acima, o intervalo deu positivo, ou seja, não houve interseção com o <em>zero</em>. Isso significa que, na população e com 95% de confiança, a média das taxas diárias de cliques do grupo <em>a</em> é maior que a média das taxas diárias de cliques do grupo <em>b</em>.</p>
 </div>
 <div id="utilizando-teste-de-hipotese" class="section level5">
 <h5>4.1.2. Utilizando teste de hipótese</h5>
+<p>Utilizando testes de hipótese, podemos verificar se existe variação nas taxas de cliques dos grupos <em>a</em> e <em>b</em>. Para isso, vamos elaboras as hipótes:</p>
+<p>H0: Não existe variação entre a média das taxas diárias de cliques dos grupos <em>a</em> e <em>b</em>. (hipótese nula) H1: Existe variação entre a média das taxas diárias de cliques dos grupos <em>a</em> e <em>b</em>.</p>
+<p>Abaixo, vamos permutar a variável <em>groups</em>, indicando o treatment = group.</p>
+<pre class="r"><code>#----------------------Por grupos A/B-----------------------
+
+set.seed(123)
+
+fun.taxa &lt;- function(dado) {
+  
+  taxa_cliques &lt;- dado %&gt;%
+    arrange(date) %&gt;%
+    group_by(date, num_clicks) %&gt;%
+    summarise(n = n()) %&gt;% 
+    mutate(taxa_cliques = n / sum(n) * 100) %&gt;%
+    ungroup()
+
+  
+  taxas = taxa_cliques %&gt;%
+    filter(num_clicks &gt; 0) %&gt;%
+    group_by(date) %&gt;%
+    summarise(taxa_cliques = sum(taxa_cliques)) %&gt;%
+    pull(taxa_cliques)
+  
+  return(mean(taxas))
+}
+
+buscasCliques.subset &lt;- subset(buscasCliques, select = c(&quot;session_id&quot;, &quot;group&quot;, &quot;num_clicks&quot;, &quot;date&quot;, &quot;results&quot;)) # criando um subset para rodar mais rápido 
+
+permutationTest2(buscasCliques.subset, fun.taxa(buscasCliques.subset), treatment = group)</code></pre>
+<pre><code>## Call:
+## permutationTest2(data = buscasCliques.subset, statistic = fun.taxa(buscasCliques.subset), 
+##     treatment = group)
+## Replications: 9999
+## Two samples, sample sizes are 74844 35947
+## 
+## Summary Statistics for the difference between samples 1 and 2:
+##                                     Observed        Mean Alternative
+## fun.taxa(buscasCliques.subset): a-b 16.27421 0.003788534   two.sided
+##                                     PValue
+## fun.taxa(buscasCliques.subset): a-b  2e-04</code></pre>
+<p>Com base no resultado apresentado acima, podemos rejeitar a hipótese nula porque o p-value foi de 2x10^(-4), ou seja, bem pequeno. Então, podemos dizer que há indícios suficientes para afirmar que, na população, há variação entre a média das taxas diárias de cliques dos grupos <em>a</em> e <em>b</em>, com um certo nível de significância.</p>
+<p>Ainda é possível observar que a média da diferença das taxas (<em>a</em>-<em>b</em>) foi positiva, o que sugere que há indícios de que a média das taxas de <em>a</em> é maior que a média das taxas de <em>b</em> na população, como observado anteriormente utilizando IC.</p>
 </div>
 </div>
 <div id="o-que-acontece-se-para-a-pergunta-anterior-em-vez-de-comparar-o-grupo-a-com-o-grupo-b-um-teste-ab-voce-compara-metade-das-sessoes-do-grupo-a-escolhida-aleatoriamente-com-outra-metade-das-sessoes-do-mesmo-grupo-um-teste-aa" class="section level4">
@@ -424,36 +460,34 @@ taxas_group_a2 &lt;- taxa_cliques_group %&gt;%
 
 res.boot &lt;- boot(data = amostras_grupo_aa, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 
 summary(res.boot$t)</code></pre>
 <pre><code>##        V1         
-##  Min.   :-1.1040  
-##  1st Qu.:-0.6150  
-##  Median :-0.3618  
-##  Mean   :-0.3110  
-##  3rd Qu.: 0.0612  
-##  Max.   : 0.3671</code></pre>
+##  Min.   :-1.4785  
+##  1st Qu.:-0.5816  
+##  Median :-0.3522  
+##  Mean   :-0.3487  
+##  3rd Qu.:-0.1172  
+##  Max.   : 0.7224</code></pre>
 <pre class="r"><code>boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;) </code></pre>
-<pre><code>## Warning in norm.inter(t, (1 + c(conf, -conf))/2): extreme order statistics
-## used as endpoints</code></pre>
 <pre><code>## BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
-## Based on 10 bootstrap replicates
+## Based on 2000 bootstrap replicates
 ## 
 ## CALL : 
 ## boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)
 ## 
 ## Intervals : 
 ## Level      Basic         
-## 95%   (-1.0574,  0.4137 )  
-## Calculations and Intervals on Original Scale
-## Warning : Basic Intervals used Extreme Quantiles
-## Some basic intervals may be unstable</code></pre>
+## 95%   (-1.0339,  0.3510 )  
+## Calculations and Intervals on Original Scale</code></pre>
 <p>Como podemos ver o intervalo indicado pela biblioteca boot deu interseção com o <em>zero</em> (-1.0339, 0.3510). Isso significa que, com 95% de confiança, não há como dizer que existe diferença entre médias das taxas da população de onde as duas amostras foram retiradas.</p>
 </div>
 <div id="qual-e-a-taxa-de-resultados-zero-no-geral-como-isso-varia-entre-os-grupos" class="section level4">
 <h4>4.3 Qual é a taxa de resultados zero no geral? Como isso varia entre os grupos?</h4>
+<div id="utilizando-intervalo-de-confianca-1" class="section level5">
+<h5>4.3.1 Utilizando intervalo de confiança</h5>
 <pre class="r"><code>set.seed(123)
 
 fun.boot &lt;- function(dado, indices) {
@@ -473,32 +507,28 @@ fun.boot &lt;- function(dado, indices) {
 
 res.boot &lt;- boot(data = buscas, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)</code></pre>
 <pre><code>##        V1       
-##  Min.   :18.31  
-##  1st Qu.:18.40  
-##  Median :18.42  
-##  Mean   :18.47  
-##  3rd Qu.:18.55  
-##  Max.   :18.66</code></pre>
+##  Min.   :18.14  
+##  1st Qu.:18.42  
+##  Median :18.48  
+##  Mean   :18.48  
+##  3rd Qu.:18.56  
+##  Max.   :18.84</code></pre>
 <pre class="r"><code>boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)</code></pre>
-<pre><code>## Warning in norm.inter(t, (1 + c(conf, -conf))/2): extreme order statistics
-## used as endpoints</code></pre>
 <pre><code>## BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
-## Based on 10 bootstrap replicates
+## Based on 2000 bootstrap replicates
 ## 
 ## CALL : 
 ## boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)
 ## 
 ## Intervals : 
 ## Level      Basic         
-## 95%   (18.30, 18.65 )  
-## Calculations and Intervals on Original Scale
-## Warning : Basic Intervals used Extreme Quantiles
-## Some basic intervals may be unstable</code></pre>
-<p>Com 95% de confiança, podemos dizer que a média das taxas de resultados zero no geral na população está no intervalo de 18.28 a 18.69.</p>
+## 95%   (18.28, 18.69 )  
+## Calculations and Intervals on Original Scale</code></pre>
+<p>Com 95% de confiança, podemos dizer que a média das taxas de resultados zero no geral na população está no intervalo de 18.28% a 18.69%.</p>
 <pre class="r"><code>set.seed(123)
 
 
@@ -524,37 +554,73 @@ fun.boot &lt;- function(dado, indices) {
 
 res.boot &lt;- boot(data = buscas, 
                  statistic = fun.boot, 
-                 R = 10)
+                 R = 2000)
 
 summary(res.boot$t)</code></pre>
-<pre><code>##        V1         
-##  Min.   :-0.5720  
-##  1st Qu.:-0.4733  
-##  Median :-0.3083  
-##  Mean   :-0.3110  
-##  3rd Qu.:-0.2415  
-##  Max.   : 0.1265</code></pre>
+<pre><code>##        V1          
+##  Min.   :-0.96360  
+##  1st Qu.:-0.35801  
+##  Median :-0.20587  
+##  Mean   :-0.20823  
+##  3rd Qu.:-0.04955  
+##  Max.   : 0.64464</code></pre>
 <pre class="r"><code>boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)</code></pre>
-<pre><code>## Warning in norm.inter(t, (1 + c(conf, -conf))/2): extreme order statistics
-## used as endpoints</code></pre>
 <pre><code>## BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
-## Based on 10 bootstrap replicates
+## Based on 2000 bootstrap replicates
 ## 
 ## CALL : 
 ## boot.ci(boot.out = res.boot, conf = 0.95, type = &quot;basic&quot;)
 ## 
 ## Intervals : 
 ## Level      Basic         
-## 95%   (-0.5345,  0.1639 )  
-## Calculations and Intervals on Original Scale
-## Warning : Basic Intervals used Extreme Quantiles
-## Some basic intervals may be unstable</code></pre>
-<p>Podemos ver acima que a diferença das médias das taxas de resultados zero no geral gerou um intervalo que faz interseção com o <em>zero</em>. Isso significa, que não há evidências suficientes, com 95% de confiança, que exista diferença entre as médias das taxas de resultados zero na população dos grupos <em>a</em> e <em>b</em>.</p>
+## 95%   (-0.6283,  0.2443 )  
+## Calculations and Intervals on Original Scale</code></pre>
+<p>Podemos ver acima que a diferença as taxas de resultados zero no geral gerou um intervalo que faz interseção com o <em>zero</em>. Isso significa, que não há evidências suficientes, com 95% de confiança, que exista diferença entre as taxas de resultados zero na população dos grupos <em>a</em> e <em>b</em>.</p>
+</div>
+<div id="utilizando-teste-de-hipotese-1" class="section level5">
+<h5>4.3.2. Utilizando teste de hipótese</h5>
+<p>Utilizando teste de hipóteses, podemos verificar se há diferença entre as taxas de resultados zero dos grupos <em>a</em> e <em>b</em>. Vamos às hipótestes: H0: As taxas de resultados zero dos grupos <em>a</em> e <em>b</em> são iguais. (hipótese nula) H1: As taxas de resultados zero dos grupos <em>a</em> e <em>b</em> são diferentes.</p>
+<p>Abaixo, vamos permutar a variável <em>groups</em>, indicando o treatment = group.</p>
+<pre class="r"><code>set.seed(123)
+
+
+fun.taxa.zero &lt;- function(dado) {
+  
+  taxa_res &lt;- dado %&gt;%
+    group_by(results) %&gt;%
+    summarise(n = n()) %&gt;% 
+    mutate(taxa_res = n / sum(n) * 100)  %&gt;%
+    ungroup()
+  
+  taxa_res &lt;- taxa_res %&gt;% 
+    filter(results == 0)
+  
+  return(taxa_res$taxa_res)
+}
+
+
+buscas.subset &lt;- subset(buscas, select = c(&quot;session_id&quot;, &quot;group&quot;, &quot;num_clicks&quot;, &quot;date&quot;, &quot;results&quot;)) # criando um subset para rodar mais rápido
+
+permutationTest2(buscas.subset, fun.taxa.zero(buscas.subset), treatment = group)</code></pre>
+<pre><code>## Call:
+## permutationTest2(data = buscas.subset, statistic = fun.taxa.zero(buscas.subset), 
+##     treatment = group)
+## Replications: 9999
+## Two samples, sample sizes are 91739 44172
+## 
+## Summary Statistics for the difference between samples 1 and 2:
+##                                     Observed        Mean Alternative
+## fun.taxa.zero(buscas.subset): a-b -0.2040161 0.001932859   two.sided
+##                                   PValue
+## fun.taxa.zero(buscas.subset): a-b 0.2288</code></pre>
+<p>Observando o resultado acima, podemos concluir que não há evidências suficientes para rejeitar a hipótese nula, pois o p-value foi de 0.1232, não foi pequeno. Então, podemos dizer que as taxas de resultados zero dos grupos <em>a</em> e <em>b</em> são iguais, com um certo nível de significância.</p>
+</div>
 </div>
 </div>
 <div id="conclusoes" class="section level3">
 <h3>5. Conclusões</h3>
-<p>Colocar aqui as diferenças entre IC e teste de hipótese talvez</p>
+<p>Ao comparar os dois métodos de realizar análises estatísticas (intervalo de confiança e testes de hipóteses), podemos perceber que utilizar IC é sempre melhor por ser mais completo. Isso é evidente no nosso relatório. Utilizando IC, vimos o nível de confiança dos resultados, vimos a faixa em que os valores da população podiam estar, etc. Já utilizando testes de hipóteses, não há como mensurar o nível de confiança do resultado, pois o p-valor não nos dá muita informação. Além disso, testes de hipóteses são sempre preto no branco - ou aceita ou rejeita a hipótese nula -, e sabemos que a vida real é muito mais complexa que isso.</p>
+<p>É isso, galera!! Usem sempre IC :).</p>
 </div>
 </div>
 
